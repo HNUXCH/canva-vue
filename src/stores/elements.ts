@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import type { AnyElement,ShapeElement,ImageElement,TextElement,GroupElement } from '@/cores/types/element'
 import { LocalStorage } from './persistence/LocalStorage'
 
-const storage = new LocalStorage('elements_')  // 自定义前缀
+const storage = new LocalStorage('elements_')
 const STORAGE_KEY = 'list'
 
 export const useElementsStore = defineStore('elements', {
