@@ -62,7 +62,8 @@ export const useElementsStore = defineStore('elements', {
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
-      this.elements.push(newElement);
+      // 创建新数组引用，触发 watch
+      this.elements = [...this.elements, newElement];
       this.recordSnapshot()
       this.saveToLocal();
       return id;
@@ -92,7 +93,8 @@ export const useElementsStore = defineStore('elements', {
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
-      this.elements.push(newElement);
+      // 创建新数组引用，触发 watch
+      this.elements = [...this.elements, newElement];
       this.recordSnapshot()
       this.saveToLocal();
       return id;
@@ -107,7 +109,8 @@ export const useElementsStore = defineStore('elements', {
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
-      this.elements.push(newElement);
+      // 创建新数组引用，触发 watch
+      this.elements = [...this.elements, newElement];
       this.recordSnapshot()
       this.saveToLocal();
       return id;
@@ -125,6 +128,20 @@ export const useElementsStore = defineStore('elements', {
 
       //不用判断类型是否有效，在view层就限制只有图形元素才能编辑这些属性
       //对象合并Object.assign(目标对象, 源对象)
+      Object.assign(element, updates)
+      element.updatedAt = Date.now()
+      this.recordSnapshot()
+      this.saveToLocal()
+    },
+
+    /** 更新文本元素 */
+    updateTextElement(
+      elementId: string,
+      updates: Partial<Omit<TextElement, 'id' | 'type' | 'createdAt' | 'updatedAt'>>
+    ): void {
+      const element = this.elements.find(el => el.id === elementId);
+      if (!element || element.type !== 'text') return;
+
       Object.assign(element, updates)
       element.updatedAt = Date.now()
       this.recordSnapshot()
