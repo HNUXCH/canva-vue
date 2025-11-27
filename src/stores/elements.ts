@@ -30,6 +30,16 @@ export const useElementsStore = defineStore('elements', {
     /** 初始化：从 LocalStorage 读取 */
     loadFromLocal() {
       this.elements = storage.get<AnyElement[]>(STORAGE_KEY, [])
+      // 将当前加载的状态作为初始快照推入历史，确保刷新后首次操作可被撤销
+      try {
+        const history = useHistoryStore()
+        if (history.index === -1) {
+          history.pushSnapshot(JSON.parse(JSON.stringify(this.elements)))
+        }
+      } catch {
+        // 在某些环境中 useHistoryStore 可能不可用，忽略错误以保证兼容性
+        // 保留原行为
+      }
     },
 
     /** 保存到 LocalStorage */
