@@ -13,6 +13,7 @@ import type { AnyElement, ShapeElement } from '@/cores/types/element'
 export class RenderService {
   private app: Application | null = null
   private graphicMap = new Map<string, Graphics>()
+  private graphicToElementId = new WeakMap<Graphics, string>()
   private container: HTMLElement | null = null
 
   /**
@@ -100,6 +101,7 @@ export class RenderService {
     
     this.app.stage.addChild(graphic)
     this.graphicMap.set(element.id, graphic)
+    this.graphicToElementId.set(graphic, element.id)
     
     return graphic
   }
@@ -173,6 +175,13 @@ export class RenderService {
    */
   getAllGraphics(): Map<string, Graphics> {
     return this.graphicMap
+  }
+
+  /**
+   * 通过Graphics获取元素ID
+   */
+  getElementIdByGraphic(graphic: Graphics): string | undefined {
+    return this.graphicToElementId.get(graphic)
   }
 
   /**

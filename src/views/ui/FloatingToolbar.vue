@@ -1,6 +1,6 @@
 <template>
   <div
-    v-if="selectedElement && (currentTool === 'select')"
+    v-if="selectedElement && !selectionStore.isMultiSelect && (currentTool === 'select')"
     class="floating-toolbar"
     :style="toolbarStyle"
     @mousedown.stop
