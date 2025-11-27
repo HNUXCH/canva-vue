@@ -46,7 +46,7 @@
         title="三角形工具 (T)"
       >
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M12 2L2 22h20L12 2z"></path>
+          <polygon points="12,2 22,22 2,22"></polygon>
         </svg>
       </button>
       <!-- <button class="tool-btn"  :class="{active: currentTool === 'editor'}" @click="setTool('editor')" title="编辑工具 (E)">
