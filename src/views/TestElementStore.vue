@@ -15,6 +15,9 @@
         删除选中 ({{ selectedIds.length }})
       </button>
 
+      <button @click="undo" :disabled="!canUndo" style="background: #e8f5e9; margin-left: 12px;">↶ 撤销</button>
+      <button @click="redo" :disabled="!canRedo" style="background: #e8f5e9;">↷ 重做</button>
+
       <hr />
 
       <div v-if="hasSelection" class="batch-controls">
@@ -55,6 +58,20 @@
     </div>
 
     <h3>当前选中: {{ selectedIds.join(', ') || '无' }}</h3>
+
+    <div style="background: #f5f5f5; padding: 12px; border-radius: 4px; margin: 12px 0;">
+      <h4 style="margin-top: 0;">📋 历史栈信息</h4>
+      <p style="margin: 4px 0; font-size: 12px;">
+        <strong>栈大小:</strong> {{ historyStore.stack.length }} | 
+        <strong>当前指针:</strong> {{ historyStore.index }} | 
+        <strong>元素数量:</strong> {{ elements.length }}
+      </p>
+      <p style="margin: 4px 0; font-size: 12px;">
+        <strong>撤销:</strong> {{ canUndo ? '可用' : '不可用' }} | 
+        <strong>重做:</strong> {{ canRedo ? '可用' : '不可用' }}
+      </p>
+    </div>
+
     <h3>元素列表</h3>
     <pre>{{ elements }}</pre>
   </div>
@@ -65,10 +82,12 @@ import { onMounted, onUnmounted, ref, computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useElementsStore } from '@/stores/elements'
 import { useSelectionStore } from '@/stores/selection'
+import { useHistoryStore } from '@/stores/history'
 import type { Element } from '@/cores/types/element'
 
 const elementsStore = useElementsStore()
 const selectionStore = useSelectionStore()
+const historyStore = useHistoryStore()
 
 onMounted(() => {
   elementsStore.loadFromLocal()
@@ -78,6 +97,8 @@ const { elements } = storeToRefs(elementsStore)
 const { selectedIds } = storeToRefs(selectionStore)
 
 const hasSelection = computed(() => selectedIds.value.length > 0)
+const canUndo = computed(() => historyStore.index > 0)
+const canRedo = computed(() => historyStore.index < historyStore.stack.length - 1)
 
 // ============ 单选操作 ============
 
@@ -123,6 +144,7 @@ const moveSelectedBy = (dx: number, dy: number) => {
 }
 
 const scaleSelectedBy = (sx: number, sy: number) => {
+  elementsStore.recordSnapshot()
   elementsStore.$patch((state) => {
     state.elements = state.elements.map((el) =>
       selectedIds.value.includes(el.id)
@@ -134,6 +156,7 @@ const scaleSelectedBy = (sx: number, sy: number) => {
 }
 
 const rotateSelectedBy = (angle: number) => {
+  elementsStore.recordSnapshot()
   elementsStore.$patch((state) => {
     state.elements = state.elements.map((el) =>
       selectedIds.value.includes(el.id)
@@ -145,6 +168,7 @@ const rotateSelectedBy = (angle: number) => {
 }
 
 const updateSelectedFill = (fill: string) => {
+  elementsStore.recordSnapshot()
   elementsStore.$patch((state) => {
     state.elements = state.elements.map((el) =>
       selectedIds.value.includes(el.id)
@@ -248,6 +272,15 @@ const elStyle = (el: Element) => ({
   background: el.fill || el.fillColor || '#fff',
   transform: `rotate(${el.rotation || 0}deg)`,
 })
+
+// ============ 撤销/重做 ============
+const undo = () => {
+  elementsStore.undo()
+}
+
+const redo = () => {
+  elementsStore.redo()
+}
 </script>
 
 <style scoped>
