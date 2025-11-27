@@ -225,6 +225,8 @@ function onElementMouseDown(el: Element, event: MouseEvent) {
     startX: event.clientX,
     startY: event.clientY,
   }
+  // 开始一个批处理，合并拖拽过程中的历史记录
+  elementsStore.beginBatch()
 }
 
 function onPointerMove(e: MouseEvent) {
@@ -249,6 +251,8 @@ function onPointerMove(e: MouseEvent) {
 
 function onPointerUp() {
   dragging.value = null
+  // 结束批处理，提交一次历史快照
+  elementsStore.endBatch()
   // 延迟重置 isDragging，避免 mouseup 后的 click 事件被拦截
   setTimeout(() => {
     isDragging.value = false

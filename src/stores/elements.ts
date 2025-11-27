@@ -143,6 +143,18 @@ export const useElementsStore = defineStore('elements', {
       this.saveToLocal()
     },
 
+    /** 开始批处理（代理到 history） */
+    beginBatch() {
+      const history = useHistoryStore()
+      history.beginBatch()
+    },
+
+    /** 结束批处理（代理到 history） */
+    endBatch() {
+      const history = useHistoryStore()
+      history.endBatch()
+    },
+
     /**
      * 批量移动元素（多选拖拽）
      * @param ids 要移动元素的id
