@@ -78,7 +78,8 @@ export const useElementsStore = defineStore('elements', {
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
-      this.elements.push(newElement);
+      // 创建新数组引用，触发 watch
+      this.elements = [...this.elements, newElement];
       this.recordSnapshot()
       this.saveToLocal();
       return id;
@@ -148,14 +149,30 @@ export const useElementsStore = defineStore('elements', {
       this.saveToLocal()
     },
 
+    /** 更新图片元素 */
+    updateImageElement(
+      elementId: string,
+      updates: Partial<Omit<ImageElement, 'id' | 'type' | 'createdAt' | 'updatedAt'>>
+    ): void {
+      const element = this.elements.find(el => el.id === elementId);
+      if (!element || element.type !== 'image') return;
+
+      Object.assign(element, updates)
+      element.updatedAt = Date.now()
+      this.recordSnapshot()
+      this.saveToLocal()
+    },
+
     /** 移动元素（相对移动） */
     moveElement(id: string, dx: number, dy: number) {
       const el = this.elements.find((e) => e.id === id)
       if (!el) return
       el.x += dx
       el.y += dy
+      el.updatedAt = Date.now()
+      
+      // 移动后记录快照
       this.recordSnapshot()
-      this.saveToLocal()
     },
 
     /** 开始批处理（代理到 history） */
@@ -182,10 +199,12 @@ export const useElementsStore = defineStore('elements', {
         if (el) {
           el.x += dx
           el.y += dy
+          el.updatedAt = Date.now()
         }
       })
+      
+      // 移动后记录快照
       this.recordSnapshot()
-      this.saveToLocal()
     },
 
     /**
