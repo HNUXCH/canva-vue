@@ -131,6 +131,9 @@ export const useElementsStore = defineStore('elements', {
       //对象合并Object.assign(目标对象, 源对象)
       Object.assign(element, updates)
       element.updatedAt = Date.now()
+      
+      // 创建新数组引用，触发 watch
+      this.elements = [...this.elements]
       this.recordSnapshot()
       this.saveToLocal()
     },
@@ -145,6 +148,9 @@ export const useElementsStore = defineStore('elements', {
 
       Object.assign(element, updates)
       element.updatedAt = Date.now()
+      
+      // 创建新数组引用，触发 watch
+      this.elements = [...this.elements]
       this.recordSnapshot()
       this.saveToLocal()
     },
@@ -172,6 +178,9 @@ export const useElementsStore = defineStore('elements', {
       el.updatedAt = Date.now()
       
       // 移动后记录快照
+      
+      // 创建新数组引用，触发 watch
+      this.elements = [...this.elements]
       this.recordSnapshot()
     },
 
@@ -204,6 +213,8 @@ export const useElementsStore = defineStore('elements', {
       })
       
       // 移动后记录快照
+      // 创建新数组引用，触发 watch
+      this.elements = [...this.elements]
       this.recordSnapshot()
     },
 
@@ -274,6 +285,32 @@ export const useElementsStore = defineStore('elements', {
         this.elements = snapshot
         this.saveToLocal()
       }
-    }
+    },
+    /**
+     * 批量更新元素
+     * @param ids 要更新的元素ID数组
+     * @param updates 更新对象或更新函数
+     */
+    updateElements(
+      ids: string[],
+      updates: Partial<AnyElement> | ((element: AnyElement) => void)
+    ): void {
+      ids.forEach(id => {
+        const element = this.elements.find(el => el.id === id)
+        if (element) {
+          if (typeof updates === 'function') {
+            updates(element)
+          } else {
+            Object.assign(element, updates)
+          }
+          element.updatedAt = Date.now()
+        }
+      })
+      
+      // 创建新数组引用，触发 watch
+      this.elements = [...this.elements]
+      this.saveToLocal()
+    },
+
   },
 })
