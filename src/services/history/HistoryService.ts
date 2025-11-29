@@ -12,6 +12,10 @@ export class HistoryService {
     return useHistoryStore()
   }
 
+  private get elementsStore() {
+    return useElementsStore()
+  }
+
   constructor() {}
 
   pushSnapshot(snapshot: AnyElement[]) {
@@ -26,18 +30,22 @@ export class HistoryService {
     this.store.endBatch()
   }
 
-  /**
-   * 执行撤销并返回快照（如果有）
-   */
-  undo(): AnyElement[] | null {
-    return this.store.undo()
+  undo() {
+    const result = this.store.undo()
+    if (result && result.snapshot) {
+      // 使用history中的snapshot更新elementsStore的状态
+      this.elementsStore.elements = result.snapshot
+    }
+    return result
   }
 
-  /**
-   * 执行重做并返回快照（如果有）
-   */
-  redo(): AnyElement[] | null {
-    return this.store.redo()
+  redo() {
+    const result = this.store.redo()
+    if (result && result.snapshot) {
+      // 使用history中的snapshot更新elementsStore的状态
+      this.elementsStore.elements = result.snapshot
+    }
+    return result
   }
 
   getCurrent(): AnyElement[] | null {
