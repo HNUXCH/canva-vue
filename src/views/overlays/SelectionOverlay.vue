@@ -20,10 +20,10 @@
       @mousedown="startDrag"
     >
       <!-- 四个角的控制点 -->
-      <div class="resize-handle top-left"></div>
-      <div class="resize-handle top-right"></div>
-      <div class="resize-handle bottom-left"></div>
-      <div class="resize-handle bottom-right"></div>
+      <div class="resize-handle top-left" @mousedown="startResize($event, 'tl')"></div>
+      <div class="resize-handle top-right" @mousedown="startResize($event, 'tr')"></div>
+      <div class="resize-handle bottom-left" @mousedown="startResize($event, 'bl')"></div>
+      <div class="resize-handle bottom-right" @mousedown="startResize($event, 'br')"></div>
     </div>
 
     <!-- 多选边框 - 可拖拽 -->
@@ -39,10 +39,10 @@
       @mousedown="startDrag"
     >
       <!-- 四个角的控制点 -->
-      <div class="resize-handle top-left"></div>
-      <div class="resize-handle top-right"></div>
-      <div class="resize-handle bottom-left"></div>
-      <div class="resize-handle bottom-right"></div>
+      <div class="resize-handle top-left" @mousedown="startResize($event, 'tl')"></div>
+      <div class="resize-handle top-right" @mousedown="startResize($event, 'tr')"></div>
+      <div class="resize-handle bottom-left" @mousedown="startResize($event, 'bl')"></div>
+      <div class="resize-handle bottom-right" @mousedown="startResize($event, 'br')"></div>
     </div>
   </div>
 </template>
@@ -65,7 +65,10 @@ const { getDragState, startDrag: startGlobalDrag, updateDragOffset: updateGlobal
 
 const selectedIds = computed(() => selectionStore.selectedIds)
 const isDragging = ref(false)
+const isResizing = ref(false)
 const dragStartPos = ref({ x: 0, y: 0 })
+const resizeStart = ref({ x: 0, y: 0, w: 0, h: 0 })
+const resizeHandle = ref('')
 const totalOffset = ref({ x: 0, y: 0 }) // 累计拖拽偏移量
 const singleBoxRef = ref<HTMLElement>()
 const multiBoxRef = ref<HTMLElement>()
@@ -242,6 +245,112 @@ const stopDrag = () => {
   document.removeEventListener('mouseup', stopDrag)
 }
 
+const startResize = (e: MouseEvent, handle: string) => {
+  if (!cachedBoundingBox.value) return
+  isResizing.value = true
+  resizeHandle.value = handle
+  resizeStart.value = { x: e.clientX, y: e.clientY, w: cachedBoundingBox.value.width, h: cachedBoundingBox.value.height }
+  document.addEventListener('mousemove', onResize)
+  document.addEventListener('mouseup', stopResize)
+  e.preventDefault()
+  e.stopPropagation()
+}
+
+const onResize = (e: MouseEvent) => {
+  if (!isResizing.value || !cachedBoundingBox.value) return
+  const dx = e.clientX - resizeStart.value.x
+  const dy = e.clientY - resizeStart.value.y
+  let w = resizeStart.value.w
+  let h = resizeStart.value.h
+  
+  if (resizeHandle.value.includes('r')) w += dx
+  if (resizeHandle.value.includes('l')) w -= dx
+  if (resizeHandle.value.includes('b')) h += dy
+  if (resizeHandle.value.includes('t')) h -= dy
+  
+  const isCircle = selectedIds.value.some(id => {
+    const el = elementsStore.getElementById(id)
+    return el?.type === 'shape' && 'shapeType' in el && el.shapeType === 'circle'
+  })
+  if (selectedIds.value.length > 1 || isCircle) {
+    const scaleX = w / resizeStart.value.w
+    const scaleY = h / resizeStart.value.h
+    const scale = Math.max(Math.abs(scaleX), Math.abs(scaleY))
+    w = resizeStart.value.w * scale
+    h = resizeStart.value.h * scale
+  }
+  
+  if (animationFrameId) return
+  animationFrameId = requestAnimationFrame(() => {
+    const box = selectedIds.value.length === 1 ? singleBoxRef.value : multiBoxRef.value
+    if (box && cachedBoundingBox.value) {
+      let x = cachedBoundingBox.value.x
+      let y = cachedBoundingBox.value.y
+      if (resizeHandle.value.includes('l')) x += cachedBoundingBox.value.width - w
+      if (resizeHandle.value.includes('t')) y += cachedBoundingBox.value.height - h
+      box.style.transform = `translate3d(${x}px, ${y}px, 0)`
+      box.style.width = w + 'px'
+      box.style.height = h + 'px'
+    }
+    
+    // Render cache shapes during resize
+    if (canvasService) {
+      const scaleX = w / resizeStart.value.w
+      const scaleY = h / resizeStart.value.h
+      selectedIds.value.forEach(id => {
+        const el = elementsStore.getElementById(id)
+        if (el) {
+          let newX = el.x, newY = el.y
+          if (resizeHandle.value.includes('l')) newX += el.width * (1 - scaleX)
+          if (resizeHandle.value.includes('t')) newY += el.height * (1 - scaleY)
+          canvasService.getRenderService().updateElementPosition(id, newX, newY)
+          const graphic = canvasService.getRenderService().getGraphic(id)
+          if (graphic) {
+            graphic.scale.set(scaleX, scaleY)
+          }
+        }
+      })
+    }
+    
+    animationFrameId = null
+  })
+}
+
+const stopResize = () => {
+  if (!isResizing.value || !cachedBoundingBox.value) return
+  if (animationFrameId) cancelAnimationFrame(animationFrameId)
+  
+  const box = selectedIds.value.length === 1 ? singleBoxRef.value : multiBoxRef.value
+  const scaleX = parseFloat(box?.style.width || '0') / cachedBoundingBox.value.width
+  const scaleY = parseFloat(box?.style.height || '0') / cachedBoundingBox.value.height
+  
+  if (Math.abs(scaleX - 1) > 0.01 || Math.abs(scaleY - 1) > 0.01) {
+    elementsStore.updateElements(selectedIds.value, (el) => {
+      let x = el.x, y = el.y
+      if (resizeHandle.value.includes('l')) x += el.width * (1 - scaleX)
+      if (resizeHandle.value.includes('t')) y += el.height * (1 - scaleY)
+      el.x = x
+      el.y = y
+      el.width = el.width * scaleX
+      el.height = el.height * scaleY
+    })
+    elementsStore.saveToLocal()
+    cachedBoundingBox.value = calculateBoundingBox()
+  }
+  
+  // Reset graphics scale
+  if (canvasService) {
+    selectedIds.value.forEach(id => {
+      const graphic = canvasService.getRenderService().getGraphic(id)
+      if (graphic) graphic.scale.set(1, 1)
+    })
+  }
+  
+  isResizing.value = false
+  document.removeEventListener('mousemove', onResize)
+  document.removeEventListener('mouseup', stopResize)
+}
+
 // 组件卸载时清理
 onUnmounted(() => {
   if (animationFrameId !== null) {
@@ -250,6 +359,8 @@ onUnmounted(() => {
   }
   document.removeEventListener('mousemove', onDrag)
   document.removeEventListener('mouseup', stopDrag)
+  document.removeEventListener('mousemove', onResize)
+  document.removeEventListener('mouseup', stopResize)
 })
 
 </script>

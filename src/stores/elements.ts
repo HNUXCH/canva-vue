@@ -133,7 +133,7 @@ export const useElementsStore = defineStore('elements', {
       //对象合并Object.assign(目标对象, 源对象)
       Object.assign(element, updates)
       element.updatedAt = Date.now()
-      
+
       // 创建新数组引用，触发 watch
       this.elements = [...this.elements]
       this.recordSnapshot()
@@ -150,7 +150,7 @@ export const useElementsStore = defineStore('elements', {
 
       Object.assign(element, updates)
       element.updatedAt = Date.now()
-      
+
       // 创建新数组引用，触发 watch
       this.elements = [...this.elements]
       this.recordSnapshot()
@@ -178,9 +178,9 @@ export const useElementsStore = defineStore('elements', {
       el.x += dx
       el.y += dy
       el.updatedAt = Date.now()
-      
+
       // 移动后记录快照
-      
+
       // 创建新数组引用，触发 watch
       this.elements = [...this.elements]
       this.recordSnapshot()
@@ -213,7 +213,7 @@ export const useElementsStore = defineStore('elements', {
           el.updatedAt = Date.now()
         }
       })
-      
+
       // 移动后记录快照
       // 创建新数组引用，触发 watch
       this.elements = [...this.elements]
@@ -308,9 +308,10 @@ export const useElementsStore = defineStore('elements', {
           element.updatedAt = Date.now()
         }
       })
-      
+
       // 创建新数组引用，触发 watch
       this.elements = [...this.elements]
+      this.recordSnapshot()
       this.saveToLocal()
     },
 
@@ -321,7 +322,7 @@ export const useElementsStore = defineStore('elements', {
 
       // 获取选中的元素
       const selectedElements = this.elements.filter(el => selectionStore.selectedIds.includes(el.id))
-      
+
       // 深拷贝元素，移除ID和时间戳
       this.clipboard = selectedElements.map(el => {
         // 直接深拷贝整个元素，后续创建新元素时会覆盖ID和时间戳
@@ -340,16 +341,16 @@ export const useElementsStore = defineStore('elements', {
 
       const selectionStore = useSelectionStore()
       const newElementIds: string[] = []
-      
+
       // 为每个粘贴的元素生成新ID并调整位置
       this.clipboard.forEach((clipboardEl, index) => {
         const id = this.generateId()
         const offset = 10 // 偏移量
-        
+
         // 计算新位置
         let newX: number;
         let newY: number;
-        
+
         if (position) {
           // 如果提供了位置，使用该位置，多个元素时依次偏移
           newX = position.x + offset * index;
@@ -359,10 +360,10 @@ export const useElementsStore = defineStore('elements', {
           newX = clipboardEl.x + offset * (index + 1);
           newY = clipboardEl.y + offset * (index + 1);
         }
-        
+
         // 创建新元素
         let newElement: AnyElement;
-        
+
         if (clipboardEl.type === 'group') {
           // 组合元素需要确保有 children 属性，使用类型断言
           const groupClipboardEl = clipboardEl as Omit<GroupElement, 'id' | 'createdAt' | 'updatedAt'>;
@@ -386,14 +387,14 @@ export const useElementsStore = defineStore('elements', {
             y: newY,
           } as AnyElement;
         }
-        
+
         this.elements.push(newElement)
         newElementIds.push(id)
       })
-      
+
       // 创建新数组引用，触发 watch 监听，确保画布重新渲染
       this.elements = [...this.elements]
-      
+
       // 记录快照
       this.recordSnapshot()
       // 保存到本地
