@@ -175,7 +175,7 @@ export class RenderService {
     if (element.type === 'shape') {
       const shapeElement = element as ShapeElement
 
-      if (shapeElement.shapeType === 'circle' && element.width === element.height) {
+      if (shapeElement.shapeType === 'circle') {
         // 圆形
         const radius = element.width / 2
         graphic.circle(radius, radius, radius)
