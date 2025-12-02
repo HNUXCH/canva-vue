@@ -249,8 +249,8 @@ const onDrag = (event: MouseEvent) => {
 
   totalOffset.value = { x: finalDx, y: finalDy }
 
-  // 立即更新全局拖拽偏移（世界坐标）
-  updateGlobalDragOffset({ x: worldDx, y: worldDy })
+  // 立即更新全局拖拽偏移（世界坐标，包含吸附修正）
+  updateGlobalDragOffset({ x: finalDx, y: finalDy })
 
   // 使用 RAF 节流
   if (animationFrameId !== null) {
