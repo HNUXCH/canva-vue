@@ -7,13 +7,13 @@
     @mousedown="handleMouseDown"
     @dblclick="handleDoubleClick"
   >
-    <div 
-      v-if="element.htmlContent" 
-      v-html="element.htmlContent" 
+    <div
+      v-if="element.htmlContent"
+      v-html="element.htmlContent"
       class="text-content"
     ></div>
-    <div 
-      v-else 
+    <div
+      v-else
       class="text-content"
     >{{ element.content }}</div>
   </div>
@@ -36,7 +36,7 @@ const emit = defineEmits<{
 
 const elementsStore = useElementsStore()
 const selectionStore = useSelectionStore()
-const { startDrag, updateDragOffset, endDrag } = useDragState()
+const { startDrag, updateDragOffset, endDrag, getDragState } = useDragState()
 
 const isDragging = ref(false)
 const hasMoved = ref(false)
@@ -47,21 +47,30 @@ let animationFrameId: number | null = null
 
 // 容器样式 - 使用 transform3d 启用 GPU 加速
 const containerStyle = computed(() => {
-  // 调整位置以适应中心变换原点
-  const centerX = props.element.x + props.element.width / 2
-  const centerY = props.element.y + props.element.height / 2
-  
+  // 检查是否在全局拖拽中（多选拖拽）
+  const dragState = getDragState().value
+  const isInGlobalDrag = dragState?.isDragging && dragState.elementIds.includes(props.element.id)
+
+  let x = props.element.x
+  let y = props.element.y
+
+  // 如果在全局拖拽中且不是自己发起的拖拽，应用拖拽偏移
+  if (isInGlobalDrag && !isDragging.value && dragState) {
+    x += dragState.offset.x
+    y += dragState.offset.y
+  }
+
   return {
     position: 'absolute' as const,
     left: '0',
     top: '0',
     width: `${props.element.width}px`,
-    height: `${props.element.height}px`, // 使用固定高度而非 minHeight
-    transform: `translate3d(${centerX}px, ${centerY}px, 0) rotate(${props.element.rotation || 0}rad)`,
+    height: `${props.element.height}px`,
+    transform: `translate3d(${x}px, ${y}px, 0) rotate(${props.element.rotation || 0}deg)`,
     opacity: props.element.opacity,
     visibility: (props.element.visible ? 'visible' : 'hidden') as 'visible' | 'hidden',
-    pointerEvents: (props.element.locked ? 'none' : 'auto') as 'none' | 'auto',
-    zIndex: 1000 + props.element.zIndex,
+    pointerEvents: 'auto' as const,
+    zIndex: 9999, // 固定高 z-index 确保在所有层之上，能接收事件
     fontSize: `${props.element.fontSize}px`,
     color: props.element.color,
     fontFamily: props.element.fontFamily,
@@ -76,12 +85,12 @@ const containerStyle = computed(() => {
 const handleMouseDown = (e: MouseEvent) => {
   elementRef.value = e.currentTarget as HTMLElement
   selectionStore.selectElement(props.element.id)
-  
+
   isDragging.value = false
   hasMoved.value = false
   dragStartPos.value = { x: e.clientX, y: e.clientY }
   elementStartPos.value = { x: props.element.x, y: props.element.y }
-  
+
   document.addEventListener('mousemove', handleMouseMove)
   document.addEventListener('mouseup', handleMouseUp)
 }
@@ -90,7 +99,7 @@ const handleMouseDown = (e: MouseEvent) => {
 const handleMouseMove = (e: MouseEvent) => {
   const dx = e.clientX - dragStartPos.value.x
   const dy = e.clientY - dragStartPos.value.y
-  
+
   // 移动超过 3px 才认为是拖拽
   if (!isDragging.value && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
     isDragging.value = true
@@ -101,26 +110,26 @@ const handleMouseMove = (e: MouseEvent) => {
     // 通知全局拖拽开始
     startDrag([props.element.id])
   }
-  
+
   if (!isDragging.value) return
-  
+
   // 立即更新拖拽偏移（SelectionOverlay 会监听这个）
   updateDragOffset({ x: dx, y: dy })
-  
+
   // 使用 RAF 节流，避免频繁更新 DOM
   if (animationFrameId !== null) return
-  
+
   animationFrameId = requestAnimationFrame(() => {
     const newX = elementStartPos.value.x + dx
     const newY = elementStartPos.value.y + dy
-    
+
     // 直接操作 DOM，不触发响应式更新（使用中心定位）
     if (elementRef.value) {
       const centerX = newX + props.element.width / 2
       const centerY = newY + props.element.height / 2
       elementRef.value.style.transform = `translate3d(${centerX}px, ${centerY}px, 0) rotate(${props.element.rotation || 0}rad)`
     }
-    
+
     animationFrameId = null
   })
 }
@@ -129,33 +138,33 @@ const handleMouseMove = (e: MouseEvent) => {
 const handleMouseUp = (e: MouseEvent) => {
   document.removeEventListener('mousemove', handleMouseMove)
   document.removeEventListener('mouseup', handleMouseUp)
-  
+
   // 取消待处理的动画帧
   if (animationFrameId !== null) {
     cancelAnimationFrame(animationFrameId)
     animationFrameId = null
   }
-  
+
   if (hasMoved.value) {
     const dx = e.clientX - dragStartPos.value.x
     const dy = e.clientY - dragStartPos.value.y
-    
+
     // 只在拖拽结束时更新 store
     elementsStore.updateTextElement(props.element.id, {
       x: elementStartPos.value.x + dx,
       y: elementStartPos.value.y + dy
     })
     elementsStore.saveToLocal()
-    
+
     // 清理性能优化
     if (elementRef.value) {
       elementRef.value.style.willChange = 'auto'
     }
   }
-  
+
   // 结束全局拖拽状态
   endDrag()
-  
+
   isDragging.value = false
   hasMoved.value = false
   elementRef.value = null
@@ -163,7 +172,6 @@ const handleMouseUp = (e: MouseEvent) => {
 
 // 双击进入编辑模式
 const handleDoubleClick = () => {
-  if (hasMoved.value) return
   emit('dblclick', props.element.id)
 }
 </script>
@@ -186,7 +194,7 @@ const handleDoubleClick = () => {
   white-space: pre-wrap; /* 保持所有空格和换行 */
   word-wrap: break-word;
   overflow-wrap: break-word;
-  overflow: hidden; /* 防止内容溢出 */
+  overflow: visible; /* 允许内容溢出，避免文本被裁剪 */
   line-height: 1.5;
   user-select: none;
 }

@@ -16,7 +16,7 @@ export function useCanvas() {
   const canvasStore = useCanvasStore()
   const elementsStore = useElementsStore()
   const selectionStore = useSelectionStore()
-  
+
   // 鼠标位置跟踪
   const mousePosition = ref({ x: 0, y: 0 })
 
@@ -66,7 +66,11 @@ export function useCanvas() {
       },
       // 工具创建事件 - 使用绘图工具点击画布创建元素
       onToolCreate: (x: number, y: number, tool: string) => {
-        createElement(x, y, tool as ToolType)
+        return createElement(x, y, tool as ToolType)
+      },
+      // 文本编辑事件
+      onTextEdit: (elementId: string) => {
+        console.log('触发文本编辑:', elementId)
       },
       // 获取当前工具
       getCurrentTool: () => canvasStore.currentTool,
@@ -75,6 +79,16 @@ export function useCanvas() {
       // 获取所有元素
       getAllElements: () => elementsStore.elements
     })
+
+    // 更新 canvasStore 的尺寸
+    const app = canvasService.getRenderService().getApp()
+    if (app) {
+      canvasStore.width = app.screen.width
+      canvasStore.height = app.screen.height
+    }
+
+    // 应用初始视口变换
+    canvasService.getRenderService().updateViewportTransform()
 
     // 首次渲染元素
     canvasService.renderElements(elementsStore.elements)
@@ -154,12 +168,13 @@ export function useCanvas() {
       console.log('创建三角形元素:', id)
       canvasStore.setTool('select')
     } else if (currentTool === 'text') {
-      // 创建文本元素
+      // 创建文本元素 - 使用 calculateCreatePosition 居中
+      const pos = canvasService.calculateCreatePosition(mouseX, mouseY, 'text')
       const id = elementsStore.addText({
-        x: mouseX,
-        y: mouseY,
-        width: 150, // 最小宽度，与 TextEditor 的 minWidth 一致
-        height: 50, // 最小高度，与 TextEditor 的 minHeight 一致
+        x: pos.x,
+        y: pos.y,
+        width: pos.width,
+        height: pos.height,
         content: '双击编辑文本',
         fontSize: 16,
         fontFamily: 'Arial',
@@ -181,10 +196,10 @@ export function useCanvas() {
   /** 鼠标移动事件处理 */
   const handleMouseMove = (event: MouseEvent) => {
     if (!container.value) return
-    
+
     // 获取容器的位置
     const rect = container.value.getBoundingClientRect()
-    
+
     // 计算鼠标在画布内的相对位置
     mousePosition.value = {
       x: event.clientX - rect.left,
@@ -200,7 +215,7 @@ export function useCanvas() {
       elementsStore.copySelectedElements()
       console.log('复制选中元素')
     }
-    
+
     // 处理 Ctrl+V 粘贴
     if ((event.ctrlKey || event.metaKey) && event.key === 'v') {
       event.preventDefault()
@@ -208,7 +223,7 @@ export function useCanvas() {
       elementsStore.pasteElements(mousePosition.value)
       console.log('粘贴元素到位置:', mousePosition.value)
     }
-    
+
     // 处理 Delete/Backspace 删除
     if (event.key === 'Delete' || event.key === 'Backspace') {
       event.preventDefault()

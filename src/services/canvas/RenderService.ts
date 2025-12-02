@@ -6,15 +6,21 @@
  * 2. 协调元素渲染（创建、更新、删除）
  * 3. 管理Graphics对象池
  * 4. 提供渲染API给上层
+ * 5. 支持无限画布视口变换
  */
-import { Application, Graphics } from 'pixi.js'
+import { Application, Graphics, Container } from 'pixi.js'
 import type { AnyElement, ShapeElement } from '@/cores/types/element'
+import type { ViewportService } from './ViewportService'
 
 export class RenderService {
   private app: Application | null = null
   private graphicMap = new Map<string, Graphics>()
   private graphicToElementId = new WeakMap<Graphics, string>()
   private container: HTMLElement | null = null
+  private viewportService: ViewportService | null = null
+
+  // 世界容器：所有元素都在这个容器中，容器的变换代表视口变换
+  private worldContainer: Container | null = null
 
   // 性能优化相关
   private elementSnapshots = new Map<string, string>() // 元素快照，用于脏检查
@@ -23,21 +29,42 @@ export class RenderService {
   /**
    * 初始化渲染引擎
    */
-  async initialize(container: HTMLElement): Promise<Application> {
+  async initialize(container: HTMLElement, viewportService?: ViewportService): Promise<Application> {
     this.container = container
+    this.viewportService = viewportService || null
 
     this.app = new Application()
     await this.app.init({
-      background: '#ffffff',
+      backgroundAlpha: 0, // 透明背景
       resizeTo: container,
-      antialias: true
+      antialias: true,
+      resolution: window.devicePixelRatio || 1,  // 支持高 DPI 屏幕（Retina）
+      autoDensity: true  // 自动调整 CSS 尺寸以匹配分辨率
     })
 
     container.appendChild(this.app.canvas)
 
+    // 设置 canvas 的 z-index，让 DOM 元素能在上层
+    const canvas = this.app.canvas as HTMLCanvasElement
+    canvas.style.position = 'absolute'
+    canvas.style.top = '0'
+    canvas.style.left = '0'
+    canvas.style.zIndex = '1'
+    canvas.style.pointerEvents = 'auto'
+
     // 启用stage交互
     this.app.stage.eventMode = 'static'
     this.app.stage.hitArea = this.app.screen
+
+    // 创建世界容器用于视口变换
+    this.worldContainer = new Container()
+    this.worldContainer.eventMode = 'static'
+    this.app.stage.addChild(this.worldContainer)
+
+    // 如果提供了视口服务，初始化视口尺寸
+    if (this.viewportService) {
+      this.viewportService.setViewportSize(this.app.screen.width, this.app.screen.height)
+    }
 
     return this.app
   }
@@ -47,6 +74,38 @@ export class RenderService {
    */
   getApp(): Application | null {
     return this.app
+  }
+
+  /**
+   * 获取世界容器
+   */
+  getWorldContainer(): Container | null {
+    return this.worldContainer
+  }
+
+  /**
+   * 更新视口变换
+   * 将视口状态应用到世界容器的变换上
+   */
+  updateViewportTransform(): void {
+    if (!this.worldContainer || !this.viewportService || !this.app) return
+
+    const viewport = this.viewportService.getViewport()
+    const screenWidth = this.app.screen.width
+    const screenHeight = this.app.screen.height
+
+    // 设置容器的缩放
+    this.worldContainer.scale.set(viewport.zoom, viewport.zoom)
+
+    // 设置容器的旋转
+    this.worldContainer.rotation = viewport.rotation
+
+    // 设置容器的位置（将相机位置转换为容器位置）
+    // 相机在世界坐标(x,y)，容器需要平移到使相机位置显示在屏幕中心
+    this.worldContainer.position.set(
+      screenWidth / 2 - viewport.x * viewport.zoom,
+      screenHeight / 2 - viewport.y * viewport.zoom
+    )
   }
 
   /**
@@ -138,20 +197,19 @@ export class RenderService {
    * 创建Graphics对象
    */
   private createGraphic(element: AnyElement): Graphics {
-    if (!this.app) throw new Error('Application not initialized')
+    if (!this.worldContainer) throw new Error('World container not initialized')
 
     const graphic = new Graphics()
     this.drawShape(graphic, element)
 
-    // Set pivot to center for rotation
-    graphic.pivot.set(element.width / 2, element.height / 2)
-    graphic.x = element.x + element.width / 2
-    graphic.y = element.y + element.height / 2
-    graphic.rotation = element.rotation || 0
+    // 元素在世界坐标系中的位置
+    graphic.x = element.x
+    graphic.y = element.y
     graphic.eventMode = 'static'
     graphic.cursor = 'pointer'
 
-    this.app.stage.addChild(graphic)
+    // 添加到世界容器而不是stage
+    this.worldContainer.addChild(graphic)
     this.graphicMap.set(element.id, graphic)
     this.graphicToElementId.set(graphic, element.id)
 
@@ -209,9 +267,9 @@ export class RenderService {
    */
   removeGraphic(elementId: string): void {
     const graphic = this.graphicMap.get(elementId)
-    if (graphic && this.app) {
+    if (graphic && this.worldContainer) {
       graphic.removeAllListeners()
-      this.app.stage.removeChild(graphic)
+      this.worldContainer.removeChild(graphic)
       graphic.destroy()
       this.graphicMap.delete(elementId)
       this.elementSnapshots.delete(elementId)
@@ -256,6 +314,19 @@ export class RenderService {
   }
 
   /**
+   * 直接更新图形样式（颜色选择器优化：直接操作 Graphics，跳过脏检查）
+   * @param elementId 元素ID
+   * @param element 完整的元素数据
+   */
+  updateGraphicStyle(elementId: string, element: AnyElement): void {
+    const graphic = this.graphicMap.get(elementId)
+    if (!graphic) return
+
+    // 直接重绘图形，不更新快照（避免触发不必要的脏检查）
+    this.drawShape(graphic, element)
+  }
+
+  /**
    * 获取所有Graphics对象
    */
   getAllGraphics(): Map<string, Graphics> {
@@ -289,10 +360,18 @@ export class RenderService {
     // 清理快照缓存
     this.elementSnapshots.clear()
 
+    // 清理世界容器
+    if (this.worldContainer) {
+      this.worldContainer.destroy({ children: true })
+      this.worldContainer = null
+    }
+
     // 销毁应用
     if (this.app) {
       this.app.destroy(true, { children: true })
       this.app = null
     }
+
+    this.viewportService = null
   }
 }
