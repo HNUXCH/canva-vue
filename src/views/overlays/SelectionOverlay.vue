@@ -376,7 +376,6 @@ const stopDrag = () => {
     })
 
     elementsStore.moveElements(Array.from(idsToMove), totalOffset.value.x, totalOffset.value.y)
-    elementsStore.saveToLocal()
 
     // Reset DOM image transforms after store update
     // const viewport = canvasStore.viewport

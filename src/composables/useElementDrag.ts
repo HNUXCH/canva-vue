@@ -251,8 +251,6 @@ export function useElementDrag(elementId: string) {
         // 单选拖拽
         elementsStore.moveElement(elementId, totalOffset.value.x, totalOffset.value.y)
       }
-
-      elementsStore.saveToLocal()
     } else {
       // 如果没有移动，重置元素位置
       if (currentElement) {
