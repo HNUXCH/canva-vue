@@ -88,6 +88,7 @@ const rotationAngle = ref(0)
 const singleBoxRef = ref<HTMLElement>()
 const multiBoxRef = ref<HTMLElement>()
 let animationFrameId: number | null = null
+const initialElementPositions = new Map<string, { x: number; y: number; width: number; height: number }>()
 
 // 使用 ref 缓存边界框，避免频繁计算
 const cachedBoundingBox = ref<{ x: number; y: number; width: number; height: number } | null>(null)
@@ -353,8 +354,10 @@ const onDrag = (event: MouseEvent) => {
     if (dragIds.length > 0) {
       dragIds.forEach(id => {
         const el = elementsStore.getElementById(id)
-        if (el?.type === 'image') {
-          // Update DOM image element - Images use world coordinates directly
+        if (!el) return
+
+        // Update DOM image element - Images use world coordinates directly
+        if (el.type === 'image') {
           const imgEl = document.querySelector(`[data-element-id="${id}"]`) as HTMLElement
           if (imgEl) {
             const elWorldX = el.x + totalOffset.value.x
@@ -364,6 +367,17 @@ const onDrag = (event: MouseEvent) => {
             imgEl.style.transform = `translate3d(${elWorldX}px, ${elWorldY}px, 0) rotate(${rotation}rad)`
             imgEl.style.width = `${el.width}px`
             imgEl.style.height = `${el.height}px`
+          }
+        }
+        // Update DOM text element - Text elements use world coordinates directly
+        else if (el.type === 'text') {
+          const textEl = document.querySelector(`[data-element-id="${id}"]`) as HTMLElement
+          if (textEl) {
+            const elWorldX = el.x + totalOffset.value.x
+            const elWorldY = el.y + totalOffset.value.y
+            const rotation = el.rotation || 0
+            // Text elements are positioned in world coordinates
+            textEl.style.transform = `translate3d(${elWorldX}px, ${elWorldY}px, 0) rotate(${rotation}rad)`
           }
         }
       })
@@ -436,6 +450,17 @@ const startResize = (e: MouseEvent, handle: string) => {
   isResizing.value = true
   resizeHandle.value = handle
   resizeStart.value = { x: e.clientX, y: e.clientY, w: cachedBoundingBox.value.width, h: cachedBoundingBox.value.height }
+  
+  // 保存所有元素的初始位置（包括组合的子元素）
+  initialElementPositions.clear()
+  const expandedIds = getExpandedIds(selectedIds.value)
+  expandedIds.forEach(id => {
+    const el = elementsStore.getElementById(id)
+    if (el) {
+      initialElementPositions.set(id, { x: el.x, y: el.y, width: el.width, height: el.height })
+    }
+  })
+  
   document.addEventListener('mousemove', onResize)
   document.addEventListener('mouseup', stopResize)
   e.preventDefault()
@@ -484,7 +509,7 @@ const onResize = (e: MouseEvent) => {
 
     // Update elements during resize
     if (canvasService && cachedBoundingBox.value) {
-      updateElementsResize(selectedIds.value, cachedBoundingBox.value, w, h, resizeHandle.value)
+      updateElementsResize(selectedIds.value, cachedBoundingBox.value, w, h, resizeHandle.value, initialElementPositions)
     }
 
     animationFrameId = null
