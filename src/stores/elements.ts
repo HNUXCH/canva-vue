@@ -10,24 +10,10 @@ const CLIPBOARD_KEY = 'clipboard'
 // === 全局节流句柄 ===
 let _saveTimer: number | null = null
 
-// === 异步 snapshot 任务队列 ===
-const _snapshotQueue: AnyElement[][] = []
-let _snapshotScheduled = false
+// === snapshot 节流 ===
+let _snapshotTimer: number | null = null
+let _pendingSnapshot: AnyElement[] | null = null
 
-function scheduleSnapshot(snapshot: AnyElement[]) {
-  _snapshotQueue.push(snapshot)
-  if (_snapshotScheduled) return
-  _snapshotScheduled = true
-
-  queueMicrotask(() => {
-    const history = useHistoryStore()
-    for (const snap of _snapshotQueue) {
-      history.pushSnapshot(snap)
-    }
-    _snapshotQueue.length = 0
-    _snapshotScheduled = false
-  })
-}
 
 // 定义 clipboard 元素的类型（包含临时属性）
 interface ClipboardElement extends Omit<AnyElement, 'id' | 'createdAt' | 'updatedAt' | 'parentGroup'> {
@@ -54,17 +40,30 @@ export const useElementsStore = defineStore('elements', {
   actions: {
     /** 记录当前快照 */
     recordSnapshot() {
-      try {
+      // 总是记录最新状态，但不立即深克隆
+      _pendingSnapshot = this.elements.slice()  // 浅拷贝即可等待执行
+
+      // 已有定时器说明正在等待，不重复触发
+      if (_snapshotTimer !== null) return
+
+      _snapshotTimer = window.setTimeout(() => {
+        _snapshotTimer = null
+
+        if (!_pendingSnapshot) return
+        const finalElements = _pendingSnapshot
+        _pendingSnapshot = null
+
+        // 在定时触发时做深克隆（只做一次）
         let cloned: AnyElement[]
         try {
-          cloned = structuredClone(this.elements)
+          cloned = structuredClone(finalElements)
         } catch {
-          cloned = JSON.parse(JSON.stringify(this.elements))
+          cloned = JSON.parse(JSON.stringify(finalElements))
         }
-        scheduleSnapshot(cloned)
-      } catch (e) {
-        console.error("recordSnapshot failed:", e)
-      }
+
+        const history = useHistoryStore()
+        history.pushSnapshot(cloned)
+      }, 50)  // ← 延迟改成 30 也可以
     },
 
     /** 初始化：从 LocalStorage 读取 */
