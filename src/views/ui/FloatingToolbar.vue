@@ -1,7 +1,7 @@
 <template>
   <!-- 单个形状元素样式编辑工具栏 -->
   <div
-    v-if="selectedElement && selectedElement.type === 'shape' && !selectionStore.isMultiSelect && (currentTool === 'select') && !isDragging"
+    v-if="selectedElement && selectedElement.type === 'shape' && !selectionStore.isMultiSelect && (currentTool === 'select') && !isDragging && !isRotating"
     class="floating-toolbar"
     :style="toolbarStyle"
     @mousedown.stop
@@ -98,7 +98,7 @@
 
   <!-- 多选/组合操作浮动工具栏 -->
   <div
-    v-else-if="(selectionStore.isMultiSelect || isGroupSelected) && currentTool === 'select' && !isDragging"
+    v-else-if="(selectionStore.isMultiSelect || isGroupSelected) && currentTool === 'select' && !isDragging && !isRotating"
     class="floating-toolbar"
     :style="toolbarStyle"
     @mousedown.stop
@@ -138,7 +138,7 @@ import { Message } from '@arco-design/web-vue'
 const selectionStore = useSelectionStore()
 const elementsStore = useElementsStore()
 const canvasStore = useCanvasStore()
-const { getDragState } = useDragState()
+const { getDragState, getRotateState } = useDragState()
 const canvasService = inject<CanvasService>('canvasService')
 const groupService = new GroupService()
 
@@ -146,6 +146,11 @@ const groupService = new GroupService()
 const isDragging = computed(() => {
   const dragState = getDragState().value
   return dragState?.isDragging || false
+})
+
+// 监听旋转状态
+const isRotating = computed(() => {
+  return getRotateState().value
 })
 
 // 预设颜色

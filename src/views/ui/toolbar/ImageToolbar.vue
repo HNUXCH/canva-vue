@@ -1,7 +1,7 @@
 <template>
   <!-- 只在选中图片元素时显示 -->
   <div
-    v-if="selectedImage && !selectionStore.isMultiSelect && currentTool === 'select' && !isDragging"
+    v-if="selectedImage && !selectionStore.isMultiSelect && currentTool === 'select' && !isDragging && !isRotating"
     class="image-toolbar"
     :style="toolbarStyle"
     @mousedown.stop
@@ -136,12 +136,17 @@ import type { ImageElement, SimpleFilterType } from '@/cores/types/element'
 const elementsStore = useElementsStore()
 const selectionStore = useSelectionStore()
 const canvasStore = useCanvasStore()
-const { getDragState } = useDragState()
+const { getDragState, getRotateState } = useDragState()
 
 // 监听拖拽状态
 const isDragging = computed(() => {
   const dragState = getDragState().value
   return dragState?.isDragging || false
+})
+
+// 监听旋转状态
+const isRotating = computed(() => {
+  return getRotateState().value
 })
 
 // 当前工具
