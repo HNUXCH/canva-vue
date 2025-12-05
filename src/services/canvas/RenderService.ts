@@ -330,13 +330,6 @@ export class RenderService {
   }
 
   /**
-   * 获取所有Graphics对象
-   */
-  getAllGraphics(): Map<string, Graphics> {
-    return this.graphicMap
-  }
-
-  /**
    * 通过Graphics获取元素ID
    */
   getElementIdByGraphic(graphic: Graphics): string | undefined {
