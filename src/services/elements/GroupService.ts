@@ -63,9 +63,6 @@ export class GroupService {
       // 3. 选中新建的组合元素
       this.selectionStore.selectElement(groupId)
 
-      // 4. 持久化
-      this.elementsStore.saveToLocal()
-
       return groupId
     } finally {
       this.elementsStore.endBatch()
@@ -100,9 +97,6 @@ export class GroupService {
 
       // 3. 更新选区为子元素
       this.selectionStore.selectedIds = childrenIds
-
-      // 4. 持久化
-      this.elementsStore.saveToLocal()
 
       return childrenIds
     } finally {
