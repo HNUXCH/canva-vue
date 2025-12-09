@@ -64,17 +64,33 @@ export const useElementsStore = defineStore('elements', {
         const finalElements = _pendingSnapshot
         _pendingSnapshot = null
 
-        // 在定时触发时做深克隆（只做一次）
-        let cloned: AnyElement[]
-        try {
-          cloned = structuredClone(finalElements)
-        } catch {
-          cloned = JSON.parse(JSON.stringify(finalElements))
+        // 对于大量元素，使用异步深克隆避免阻塞主线程
+        if (finalElements.length > 50) {
+          // 使用 requestIdleCallback 或 setTimeout(0) 将深克隆延迟到空闲时间
+          requestAnimationFrame(() => {
+            Promise.resolve().then(() => {
+              let cloned: AnyElement[]
+              try {
+                cloned = structuredClone(finalElements)
+              } catch {
+                cloned = JSON.parse(JSON.stringify(finalElements))
+              }
+              const history = useHistoryStore()
+              history.pushSnapshot(cloned)
+            })
+          })
+        } else {
+          // 少量元素直接同步克隆
+          let cloned: AnyElement[]
+          try {
+            cloned = structuredClone(finalElements)
+          } catch {
+            cloned = JSON.parse(JSON.stringify(finalElements))
+          }
+          const history = useHistoryStore()
+          history.pushSnapshot(cloned)
         }
-
-        const history = useHistoryStore()
-        history.pushSnapshot(cloned)
-      }, 50)  // ← 延迟改成 30 也可以
+      }, 30)  // 减少延迟，更快地合并连续操作
     },
 
     /** 初始化：从 LocalStorage 读取 */
@@ -386,11 +402,12 @@ export const useElementsStore = defineStore('elements', {
     ): void {
       // === 只做轻量同步更新，绝不进行深克隆 ===
       const now = Date.now()
+      
+      // 使用 Map 提高查找效率，避免 O(n²) 复杂度
+      const idSet = new Set(ids)
+      const elementsToUpdate = this.elements.filter(el => idSet.has(el.id))
 
-      for (const id of ids) {
-        const element = this.elements.find(el => el.id === id)
-        if (!element) continue
-
+      for (const element of elementsToUpdate) {
         if (typeof updates === 'function') {
           updates(element)
         } else {
@@ -403,7 +420,10 @@ export const useElementsStore = defineStore('elements', {
       // 创建新数组引用，触发 watch
       this.elements = [...this.elements]
       
-      // 批处理中不调用，由 endBatch 统一处理
+      // 批处理中跳过，由 endBatch 统一处理
+      const history = useHistoryStore()
+      if (history.batchDepth > 0) return
+      
       this.recordSnapshot()
       this.saveToLocal()
     },
