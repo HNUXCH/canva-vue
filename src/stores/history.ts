@@ -44,8 +44,8 @@ export const useHistoryStore = defineStore('history', {
     stack: [],
     index: -1,
     fullSnapshot: null,
-    maxSize: 200,
-    compressThreshold: 100,
+    maxSize: 100,  // 从 200 降低到 100
+    compressThreshold: 50,  // 从 100 降低到 50，更积极地压缩
     batchDepth: 0,
     pendingRecord: null,
   }),
@@ -181,9 +181,9 @@ export const useHistoryStore = defineStore('history', {
       let record: HistoryRecord
 
       if (this.index < 0) {
-        // 第一条记录存为完整快照
+        // 第一条记录存为完整快照（snapshot 已经是深克隆后的）
         record = {
-          snapshot: JSON.parse(JSON.stringify(snapshot)),
+          snapshot: snapshot,  // 不需要再次克隆
           changedIds: snapshot.map(e => e.id),
           desc,
           timestamp: Date.now(),
@@ -192,14 +192,13 @@ export const useHistoryStore = defineStore('history', {
       } else {
         // 后续记录存为差异
         const before = this.fullSnapshot || this.rebuildFullSnapshot()
-        const after = JSON.parse(JSON.stringify(snapshot))
 
-        if (JSON.stringify(before) === JSON.stringify(after)) {
+        if (JSON.stringify(before) === JSON.stringify(snapshot)) {
           // 没有变化，不记录
           return
         }
 
-        record = this.generateDiffRecord(before, after)
+        record = this.generateDiffRecord(before, snapshot)
       }
 
       // 批处理中暂存
@@ -215,7 +214,7 @@ export const useHistoryStore = defineStore('history', {
 
       this.stack.push(record)
       this.index++
-      this.fullSnapshot = JSON.parse(JSON.stringify(snapshot))
+      this.fullSnapshot = snapshot  // 直接使用，不需要再次克隆
 
       // 超过阈值时触发压缩
       if (this.stack.length > this.compressThreshold) {
@@ -299,9 +298,9 @@ export const useHistoryStore = defineStore('history', {
         this.stack.push(record)
         this.index++
 
-        // 从最后一条记录重建快照
+        // 从最后一条记录重建快照（避免重复克隆）
         if (this.isSnapshot(record)) {
-          this.fullSnapshot = JSON.parse(JSON.stringify(record.snapshot))
+          this.fullSnapshot = record.snapshot  // 直接使用，不需要再次克隆
         } else {
           this.fullSnapshot = this.rebuildFullSnapshot()
         }
